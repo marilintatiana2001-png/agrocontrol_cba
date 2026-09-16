@@ -53,6 +53,12 @@ def buscar_producto(codigo):
             return p
     return None
 
+def buscar_lote(id_lote):
+    for l in lotes:
+        if l["id_lote"] == id_lote.upper():
+            return l
+    return None
+
 def menu_productos():
     while True:
         print("\n" + "=" * 60)
@@ -170,6 +176,122 @@ def desactivar_producto():
     p["activo"] = False
     guardar_datos()
     print(f"SUCCESS: Producto '{p['nombre']}' desactivado.")
+
+def menu_lotes():
+    while True:
+        print("\n" + "=" * 60)
+        print(f"{'GESTION DE LOTES PRODUCTIVOS':^60}")
+        print("=" * 60)
+        print("1. Registrar nuevo lote")
+        print("2. Registrar cosecha de lote")
+        print("3. Listar lotes")
+        print("4. Volver al menu principal")
+        opcion = input("Seleccione una opcion: ").strip()
+
+        if opcion == "1":
+            registrar_lote()
+        elif opcion == "2":
+            registrar_cosecha()
+        elif opcion == "3":
+            listar_lotes()
+        elif opcion == "4":
+            break
+        else:
+            print("Opcion invalida.")
+
+def registrar_lote():
+    print("\n--- REGISTRAR NUEVO LOTE ---")
+    id_lote = input("ID del lote (ej. LOTE-01): ").strip().upper()
+    if not id_lote or buscar_lote(id_lote):
+        print("ERROR: ID de lote invalido o ya existente.")
+        return
+
+    codigo_prod = input("Codigo del producto a sembrar: ").strip().upper()
+    prod = buscar_producto(codigo_prod)
+    if not prod or not prod["activo"]:
+        print("ERROR: Producto no existe o esta inactivo.")
+        return
+
+    area = input("Ubicacion / Area de siembra (ej. Invernadero A): ").strip()
+    try:
+        costo_siembra = float(input("Costo acumulado de siembra/mantenimiento ($): "))
+        if costo_siembra < 0:
+            print("ERROR: El costo no puede ser negativo.")
+            return
+    except ValueError:
+        print("ERROR: Ingrese un costo valido.")
+        return
+
+    fecha_siembra = datetime.now().strftime("%Y-%m-%d")
+
+    nuevo_lote = {
+        "id_lote": id_lote,
+        "codigo_producto": codigo_prod,
+        "ubicacion": area,
+        "fecha_siembra": fecha_siembra,
+        "fecha_cosecha": None,
+        "costo_acumulado": costo_siembra,
+        "cantidad_cosechada": 0,
+        "costo_unitario": 0.0,
+        "estado": "EN_CRECIMIENTO"
+    }
+    lotes.append(nuevo_lote)
+    guardar_datos()
+    print(f"SUCCESS: Lote '{id_lote}' registrado exitosamente.")
+
+def registrar_cosecha():
+    print("\n--- REGISTRAR COSECHA DE LOTE ---")
+    id_lote = input("ID del lote a cosechar: ").strip().upper()
+    lote = buscar_lote(id_lote)
+    if not lote:
+        print("ERROR: Lote no encontrado.")
+        return
+    if lote["estado"] == "COSECHADO":
+        print("ERROR: Este lote ya fue cosechado previamente.")
+        return
+
+    try:
+        cantidad = int(input("Cantidad total cosechada (unidades/kg): "))
+        costo_adicional = float(input("Costo adicional de recoleccion ($): "))
+        if cantidad <= 0 or costo_adicional < 0:
+            print("ERROR: La cantidad debe ser mayor a 0 y costo positivo.")
+            return
+    except ValueError:
+        print("ERROR: Ingrese valores numericos validos.")
+        return
+
+    costo_total = lote["costo_acumulado"] + costo_adicional
+    costo_unitario = costo_total / cantidad
+
+    lote["fecha_cosecha"] = datetime.now().strftime("%Y-%m-%d")
+    lote["costo_acumulado"] = costo_total
+    lote["cantidad_cosechada"] = cantidad
+    lote["costo_unitario"] = costo_unitario
+    lote["estado"] = "COSECHADO"
+
+    # Actualizar costo base en el producto
+    prod = buscar_producto(lote["codigo_producto"])
+    if prod:
+        prod["costo_base"] = costo_unitario
+
+    guardar_datos()
+    print(f"SUCCESS: Cosecha registrada. Costo unitario resultante: {formato_moneda(costo_unitario)}")
+
+def listar_lotes():
+    print("\n" + "=" * 85)
+    print(f"{'LISTADO GENERAL DE LOTES':^85}")
+    print("=" * 85)
+    if not lotes:
+        print("No hay lotes registrados.")
+        return
+
+    print(f"+{'-'*10}+{'-'*10}+{'-'*15}+{'-'*12}+{'-'*12}+{'-'*10}+{'-'*12}+")
+    print(f"| {'ID LOTE':<8} | {'PRODUCTO':<8} | {'SIEMBRA':<13} | {'COSECHA':<10} | {'CANTIDAD':<10} | {'ESTADO':<8} | {'COSTO U.':<10} |")
+    print(f"+{'-'*10}+{'-'*10}+{'-'*15}+{'-'*12}+{'-'*12}+{'-'*10}+{'-'*12}+")
+    for l in lotes:
+        f_cos = l["fecha_cosecha"] if l["fecha_cosecha"] else "N/A"
+        print(f"| {l['id_lote']:<8} | {l['codigo_producto']:<8} | {l['fecha_siembra']:<13} | {f_cos:<10} | {l['cantidad_cosechada']:<10} | {l['estado']:<8} | {formato_moneda(l['costo_unitario']):<10} |")
+    print(f"+{'-'*10}+{'-'*10}+{'-'*15}+{'-'*12}+{'-'*12}+{'-'*10}+{'-'*12}+")
 
 def menu_principal():
     while True:
